@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>3D对战小游戏</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;font-family:system-ui}
+#ui{position:absolute;top:16px;left:16px;color:#fff;background:rgba(0,0,0,0.5);padding:12px;border-radius:8px;z-index:10}
+#cross{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:24px;z-index:10}
+</style>
+</head>
+<body>
+<div id="ui">
+玩家血量：<span id="playerHp">100</span><br>
+敌人血量：<span id="enemyHp">100</span><br>
+WASD移动｜鼠标拖拽转视角｜左键攻击
+</div>
+<div id="cross">+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
+<script>
+// ========== 初始化场景 ==========
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// 指针锁定（鼠标视角）
+const controls = new THREE.PointerLockControls(camera, document.body);
+
+// 灯光
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(10,20,10);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0x404040,0.6));
+
+// 地面
+const groundGeo = new THREE.PlaneGeometry(100,100);
+const groundMat = new THREE.MeshLambertMaterial({color:0x3a7d44});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+// ========== 玩家 ==========
+const player = {
+    hp:100,
+    speed:4,
+    pos:new THREE.Vector3(0,1,0)
+};
+camera.position.copy(player.pos);
+
+// ========== 敌人模型 ==========
+const enemyGeo = new THREE.CylinderGeometry(0.6,0.6,2,8);
+const enemyMat = new THREE.MeshLambertMaterial({color:0xdd4444});
+const enemy = new THREE.Mesh(enemyGeo, enemyMat);
+enemy.position.set(8,1,0);
+scene.add(enemy);
+const enemyState = {hp:100, speed:1.2, attackCd:0};
+
+// ========== 按键监听 ==========
+const keys = {};
+document.addEventListener('keydown',e=>keys[e.code]=true);
+document.addEventListener('keyup',e=>keys[e.code]=false);
+
+// 点击页面锁定鼠标
+document.body.addEventListener('click',()=>{
+    controls.lock();
+});
+
+// 左键攻击
+document.addEventListener('mousedown',(e)=>{
+    if(e.button!==0) return;
+    // 攻击判定：距离小于5米打中敌人
+    const dist = camera.position.distanceTo(enemy.position);
+    if(dist <5){
+        enemyState.hp -=15;
+        document.getElementById('enemyHp').innerText = enemyState.hp;
+        if(enemyState.hp <=0){
+            alert("敌人被击败！");
+        }
+    }
+});
+
+// ========== 游戏循环 ==========
+function animate(){
+    requestAnimationFrame(animate);
+
+    // 玩家移动
+    const forward = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    controls.getDirection(forward);
+    forward.y=0; forward.normalize();
+    right.crossVectors(forward, camera.up).normalize();
+
+    if(keys['KeyW']) camera.position.addScaledVector(forward, player.speed*0.016);
+    if(keys['KeyS']) camera.position.addScaledVector(forward, -player.speed*0.016);
+    if(keys['KeyA']) camera.position.addScaledVector(right, player.speed*0.016);
+    if(keys['KeyD']) camera.position.addScaledVector(right, -player.speed*0.016);
+
+    // AI敌人追逐玩家
+    const dirToPlayer = new THREE.Vector3().subVectors(camera.position, enemy.position).normalize();
+    enemy.position.addScaledVector(dirToPlayer, enemyState.speed *0.016);
+
+    // 敌人攻击逻辑
+    const distPlayerEnemy = camera.position.distanceTo(enemy.position);
+    enemyState.attackCd -=0.016;
+    if(distPlayerEnemy <3 && enemyState.attackCd <=0){
+        player.hp -=8;
+        document.getElementById('playerHp').innerText = player.hp;
+        enemyState.attackCd = 1.2;
+        if(player.hp <=0){
+            alert("你被击败了！");
+        }
+    }
+
+    renderer.render(scene,camera);
+}
+animate();
+
+// 窗口自适应
+window.addEventListener('resize',()=>{
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+})
+</script>
+</body>
+</html>
